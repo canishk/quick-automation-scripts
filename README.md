@@ -1,6 +1,5 @@
-# Quick Automation Scripts
-
-A collection of automation scripts for various tasks.
+# S3 Bucket folder downloader
+Python script to download the contents of S3 Bucket folders and zip it.
 
 ## Setup
 
