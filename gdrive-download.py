@@ -1,6 +1,7 @@
 import gdown
 import os
 import time
+import argparse
 from requests.exceptions import ChunkedEncodingError, ConnectionError
 
 def download_drive_contents(url, output_dir):
@@ -26,14 +27,17 @@ def download_drive_contents(url, output_dir):
         )
 
 if __name__ == "__main__":
-    # Example usage
-    url = input("Enter the Google Drive URL (file or folder): ")
-    output_dir = input("Enter the output directory: ")
+    parser = argparse.ArgumentParser(description="Download files or folders from Google Drive.")
+    parser.add_argument("url", help="The Google Drive URL (file or folder)")
+    parser.add_argument("output_dir", help="The output directory to save the downloaded content")
+    parser.add_argument("--max-retries", type=int, default=10, help="Maximum number of retries on failure (default: 10)")
     
-    max_retries = 10
+    args = parser.parse_args()
+    
+    max_retries = args.max_retries
     for attempt in range(max_retries):
         try:
-            download_drive_contents(url, output_dir)
+            download_drive_contents(args.url, args.output_dir)
             print("Download completed successfully.")
             break
         
