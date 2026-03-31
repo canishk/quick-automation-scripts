@@ -9,10 +9,11 @@ import uuid
 from botocore.exceptions import ClientError, NoCredentialsError
 
 class S3Downloader:
-    def __init__(self, bucket_name, main_folder=None, delete_source=False):
+    def __init__(self, bucket_name, main_folder=None, delete_source=False, destination=None):
         self.bucket_name = bucket_name
         self.main_folder = main_folder
         self.delete_source = delete_source
+        self.destination = destination or os.getcwd()
         self.s3_client = boto3.client(
             's3'
         )
@@ -21,7 +22,7 @@ class S3Downloader:
     def zip_s3_files(self, bucket_name, prefix, zip_file_path, delete_source=False):
         # Use a unique temp directory to avoid conflicts
         unique_id = str(uuid.uuid4())[:8]
-        temp_dir = os.path.join(os.getcwd(), f'temp_download_{unique_id}')
+        temp_dir = os.path.join(self.destination, f'temp_download_{unique_id}')
         logging.info(f"Downloading files from bucket '{bucket_name}' with prefix '{prefix}' to temporary directory '{temp_dir}'...")
         try:
             # Create temp directory
@@ -93,8 +94,9 @@ class S3Downloader:
                         logging.error(f"Failed to clean up temp directory after 5 attempts: {e}")
 
     def main(self):
-        os.makedirs(self.bucket_name, exist_ok=True)
-        logging.info(f"Created directory '{self.bucket_name}' for storing zip files.")
+        bucket_dir = os.path.join(self.destination, self.bucket_name)
+        os.makedirs(bucket_dir, exist_ok=True)
+        logging.info(f"Created directory '{bucket_dir}' for storing zip files.")
         try:
             logging.info(f"Connecting to S3 bucket '{self.bucket_name}'...")
             
@@ -122,7 +124,7 @@ class S3Downloader:
                     # Extract only the subfolder name without the main folder prefix
                     subfolder_name = folder[len(folder_prefix):].strip('/')
                     logging.info(f"Processing folder '{folder}'...")
-                    zip_file_path = os.path.join(self.bucket_name, f"{subfolder_name}.zip")
+                    zip_file_path = os.path.join(bucket_dir, f"{subfolder_name}.zip")
                     self.zip_s3_files(self.bucket_name, folder, zip_file_path, delete_source=self.delete_source)
             else:
                 # Original behavior: download all top-level folders
@@ -137,12 +139,12 @@ class S3Downloader:
                         top_level_folders.append(common_prefix['Prefix'])
                 
                 if root_has_files:
-                    zip_file_path = os.path.join(self.bucket_name, f"{self.bucket_name}_root.zip")
+                    zip_file_path = os.path.join(bucket_dir, f"{self.bucket_name}_root.zip")
                     self.zip_s3_files(self.bucket_name, '', zip_file_path, delete_source=self.delete_source)
                 
                 for folder in top_level_folders:
                     logging.info(f"Processing folder '{folder}'...")
-                    zip_file_path = os.path.join(self.bucket_name, f"{folder.strip('/')}.zip")
+                    zip_file_path = os.path.join(bucket_dir, f"{folder.strip('/')}.zip")
                     self.zip_s3_files(self.bucket_name, folder, zip_file_path, delete_source=self.delete_source)
         except NoCredentialsError:
             logging.error("AWS credentials not found. Please provide valid credentials.")
@@ -158,10 +160,11 @@ if __name__ == "__main__":
         parser.add_argument('--bucket', help='Name of the S3 bucket')
         parser.add_argument('--folder', help='Main folder prefix within the bucket to download from (optional)')
         parser.add_argument('--delete-source', action='store_true', help='Delete downloaded files and folders from S3 after successful zip creation')
+        parser.add_argument('--destination', help='Destination directory for temporary and zip files (default: current working directory)')
         args = parser.parse_args()
         if not args.bucket:
             logging.error("Bucket name is required. Use --bucket to specify the bucket name.")
             exit(1)
-        downloader = S3Downloader(args.bucket, args.folder, delete_source=args.delete_source)
+        downloader = S3Downloader(args.bucket, args.folder, delete_source=args.delete_source, destination=args.destination)
         downloader.main()
         
